@@ -30,27 +30,17 @@ parser.add_argument(
     "--model",
     type=str,
     default="hit",
-    help="Model to train. Available:\n"
-    "SVM (linear), "
-    "SVM_grid (grid search on linear, poly and RBF kernels), "
-    "baseline (fully connected NN), "
-    "hu (1D CNN), "
-    "hamida (3D CNN + 1D classifier), "
-    "lee (3D FCN), "
-    "chen (3D CNN), "
-    "li (3D CNN), "
-    "he (3D CNN), "
-    "luo (3D CNN), "
-    "sharma (2D CNN), "
-    "boulch (1D semi-supervised CNN), "
-    "liu (3D semi-supervised CNN), "
-    "mou (1D RNN)",
 )
+# TODO: Learning Rate
+parser.add_argument(
+    "--lr",
+    type=float,
+    default=0.0001
+)
+
 parser.add_argument(
     "--folder",
     type=str,
-    help="Folder where to store the "
-    "datasets (defaults to the current working directory).",
     default="./Datasets/",
 )
 parser.add_argument(
@@ -221,7 +211,6 @@ def get_model(name, **kwargs):
     lr = kwargs.setdefault("learning_rate", 1e-4)  ## for KSC 0.000003
     optimizer = optim.Adam(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss(weight=kwargs["weights"])
-    kwargs.setdefault("epoch", 100)
     kwargs.setdefault("batch_size", 64)
 
     model = model.to(device)
@@ -310,8 +299,9 @@ def test(test_loader):
             y_test = np.concatenate((y_test, labels))
     return y_pred_test, y_test
 
-for dataset_name in ['Indian']: # , 'Pavia', 'Honghu']:
-    for train_num in [5, 10, 15, 20, 25, 30, 0.1]:
+
+for dataset_name in ['Indian', 'Pavia', 'Honghu']:
+    for train_num in [0.1, 5, 10, 15, 20, 25, 30]:
         mat_file = "{}_{}_split.mat".format(dataset_name, train_num)
         if utils.result_file_exists('./dataset/{}'.format(dataset_name), mat_file):
             print("{} had been generated...skip".format(mat_file))

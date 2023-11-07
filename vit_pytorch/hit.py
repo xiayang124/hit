@@ -224,11 +224,12 @@ class ConvPermuteMLP(nn.Module):
         a = self.reweight(a).reshape(B, C, 3).permute(2, 0, 1).softmax(dim=0).unsqueeze(2).unsqueeze(2).permute(0, 1, 4, 2, 3)
 
         x = h * a[0] + w * a[1] + c * a[2]
-        x = x.reshape(B, H, W, C)  
+        x = x.reshape(B, H, W, C)
         x = self.proj(x)
         x = self.proj_drop(x)
 
         return x
+
 
 class PermutatorBlock(nn.Module):
 
