@@ -177,13 +177,14 @@ import torch.optim as optim
 from vit_pytorch.hit import HiT, ConvPermuteMLP
 
 
-def get_model(name, **kwargs):
+def get_model(name, band, **kwargs):
     """
     Instantiate and obtain a model with adequate hyperparameters
 
     Args:
         name: string of the model name
         kwargs: hyperparameters
+        band
     Returns:
         model: PyTorch network
         optimizer: PyTorch optimizer
@@ -196,7 +197,7 @@ def get_model(name, **kwargs):
     weights = torch.ones(n_classes)
     weights[torch.LongTensor(kwargs["ignored_labels"])] = 0.0
     weights = weights.to(device)
-    weights = kwargs.setdefault("weights", weights)
+    kwargs["weights"] = weights
 
     kwargs.setdefault("patch_size", 15)
     center_pixel = True
@@ -204,26 +205,17 @@ def get_model(name, **kwargs):
     transitions = [False, True, False, False]
     segment_dim = [8, 8, 4, 4]
     mlp_ratios = [3, 3, 3, 3]
-    embed_dims = [400, 400, 512, 512]  ## for IN 368, for GRSS 256, for PU 168, for KSC 320 for XA 480
+    embed_dims = [band, band, 512, 512]  ## for IN 368, for GRSS 256, for PU 168, for KSC 320 for XA 480
     model = HiT(layers, img_size=15, in_chans=n_bands, num_classes=n_classes, embed_dims=embed_dims, patch_size=3,
                 transitions=transitions,
                 segment_dim=segment_dim, mlp_ratios=mlp_ratios, mlp_fn=ConvPermuteMLP, )
     lr = kwargs.setdefault("learning_rate", 1e-4)  ## for KSC 0.000003
     optimizer = optim.Adam(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss(weight=kwargs["weights"])
-    kwargs.setdefault("batch_size", 64)
 
     model = model.to(device)
-    epoch = kwargs.setdefault("epoch", 100)
     gamma = 0.7
-    kwargs.setdefault(
-        "scheduler",
-        optim.lr_scheduler.StepLR(
-            optimizer, step_size=kwargs["epoch"] // 4, gamma=gamma
-        ),
-    )
     # kwargs.setdefault('scheduler', None)
-    kwargs.setdefault("batch_size", 100)
     kwargs.setdefault("supervision", "full")
     kwargs.setdefault("flip_augmentation", False)
     kwargs.setdefault("radiation_augmentation", False)
@@ -238,7 +230,7 @@ def get_logits(output):
     return output
 
 
-def train_epoch(model, train_loader, criterion, optimizer, scheduler, dataset, epochs):
+def train_epoch(model, train_loader, criterion, optimizer, dataset, epochs):
     evalation = HSIEvaluation(dataset)
     recorder = HSIRecoder()
     epoch_avg_loss = AvgrageMeter()
@@ -259,7 +251,6 @@ def train_epoch(model, train_loader, criterion, optimizer, scheduler, dataset, e
             optimizer.step()
             total_loss += loss.item()
             epoch_avg_loss.update(loss.item(), batch_data.shape[0])
-        scheduler.step()
         recorder.append_index_value("epoch_loss", epoch + 1, epoch_avg_loss.get_avg())
         print(
             '[Epoch: %d]  [epoch_loss: %.5f]  [all_epoch_loss: %.5f] [current_batch_loss: %.5f] [batch_num: %s]' % (
@@ -300,7 +291,7 @@ def test(test_loader):
     return y_pred_test, y_test
 
 
-for dataset_name in ['Indian', 'Pavia', 'Honghu']:
+for dataset_name in ['Honghu', 'Indian', 'Pavia']:
     for train_num in [0.1, 5, 10, 15, 20, 25, 30]:
         mat_file = "{}_{}_split.mat".format(dataset_name, train_num)
         if utils.result_file_exists('./dataset/{}'.format(dataset_name), mat_file):
@@ -309,9 +300,15 @@ for dataset_name in ['Indian', 'Pavia', 'Honghu']:
         data_gen.generate_data(dataset_name, train_num)
 print("All data had been generated!")
 
-for dataset_name in ['Indian', 'Honghu', 'Pavia']:
-    for train_num in [0.1, 5, 10, 15, 20, 25, 30]:
-        for train_time in range(5):
+for dataset_name in ['Indian', 'Pavia', 'Honghu']:
+    if dataset_name == "Indian":
+        norm_band = 400
+    elif dataset_name == "Pavia":
+        norm_band = 208
+    elif dataset_name == "Honghu":
+        norm_band = 544
+    for train_num in [5, 10, 15, 20, 25, 30, 0.1]:
+        for train_time in range(1):
             uniq_name = "{}_{}_{}_hit.json".format(dataset_name, train_num, train_time)
             if utils.result_file_exists('./save_path', uniq_name):
                 print('%s has been run. skip...' % uniq_name)
@@ -324,6 +321,14 @@ for dataset_name in ['Indian', 'Honghu', 'Pavia']:
             N_CLASSES = len(LABEL_VALUES)
             # Number of bands (last dimension of the image tensor)
             N_BANDS = img.shape[-1]
+
+            input_band = N_BANDS
+            if dataset_name == "Indian":
+                norm_band = 400
+            elif dataset_name == "Pavia":
+                norm_band = 208
+            elif dataset_name == "Honghu":
+                norm_band = 544
 
             hyperparams.update(
                 {
@@ -345,16 +350,16 @@ for dataset_name in ['Indian', 'Honghu', 'Pavia']:
                 "run {}/{}".format(train_time + 1, 3),
             )
 
-            model, optimizer, loss, hyperparams = get_model(MODEL, **hyperparams)
+            model, optimizer, loss, hyperparams = get_model(MODEL, norm_band, **hyperparams)
 
-            train_dataset = HyperX(img, TR, **hyperparams)
+            train_dataset = HyperX(img, TR, input_band, **hyperparams)
             train_loader = data.DataLoader(
                 train_dataset,
                 batch_size=hyperparams["batch_size"],
                 # pin_memory=hyperparams['device'],
                 shuffle=True,
             )
-            test_dataset = HyperX(img, TE, **hyperparams)
+            test_dataset = HyperX(img, TE, input_band, **hyperparams)
             test_loader = data.DataLoader(
                 test_dataset,
                 # pin_memory=hyperparams['device'],
@@ -362,7 +367,7 @@ for dataset_name in ['Indian', 'Honghu', 'Pavia']:
             )
             print(hyperparams)
 
-            recorder = train_epoch(model, train_loader, loss, optimizer, hyperparams["scheduler"], hyperparams["dataset"], hyperparams["epoch"])
+            recorder = train_epoch(model, train_loader, loss, optimizer, hyperparams["dataset"], hyperparams["epoch"])
             path = "./save_path/{}_{}_{}_hit".format(dataset_name, train_num, train_time)
             recorder.to_file(path)
         

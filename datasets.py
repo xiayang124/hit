@@ -20,14 +20,6 @@ except ImportError:
 from utils import open_file
 
 DATASETS_CONFIG = {
-    "PaviaC": {
-        "urls": [
-            "http://www.ehu.eus/ccwintco/uploads/e/e3/Pavia.mat",
-            "http://www.ehu.eus/ccwintco/uploads/5/53/Pavia_gt.mat",
-        ],
-        "img": "Pavia.mat",
-        "gt": "Pavia_gt.mat",
-    },
     "Salinas": {
         "urls": [
             "http://www.ehu.eus/ccwintco/uploads/a/a3/Salinas_corrected.mat",
@@ -36,7 +28,7 @@ DATASETS_CONFIG = {
         "img": "Salinas_corrected.mat",
         "gt": "Salinas_gt.mat",
     },
-    "PaviaU": {
+    "Pavia": {
         "urls": [
             "http://www.ehu.eus/ccwintco/uploads/e/ee/PaviaU.mat",
             "http://www.ehu.eus/ccwintco/uploads/5/50/PaviaU_gt.mat",
@@ -84,6 +76,11 @@ DATASETS_CONFIG = {
         "img": "Botswana.mat",
         "gt": "Botswana_gt.mat",
     },
+    "Honghu": {
+        "urls": ["pass"],
+        "img": "WHU_Hi_HongHu.mat",
+        "gt": "WHU_Hi_HongHu_gt.mat"
+    }
 }
 
 try:
@@ -112,7 +109,7 @@ def get_dataset(dataset_name, train_num=10, target_folder="./dataset/", datasets
     dataset = datasets[dataset_name]
     folder = target_folder + datasets[dataset_name].get("folder", dataset_name + "/")
 
-    if dataset_name == "PaviaU":
+    if dataset_name == "Pavia":
         mat = open_file(folder + "Pavia_{}_split.mat".format(train_num))
         img = mat['input']
         TR, TE = mat['TR'], mat['TE']
@@ -159,7 +156,7 @@ def get_dataset(dataset_name, train_num=10, target_folder="./dataset/", datasets
 
         ignored_labels = [0]
     elif dataset_name == "Honghu":
-        mat = open_file(folder + "Honghu_{}_split.mat")
+        mat = open_file(folder + "Honghu_{}_split.mat".format(train_num))
         img = mat['input']
         TR, TE = mat['TR'], mat['TE']
 
@@ -181,7 +178,7 @@ def get_dataset(dataset_name, train_num=10, target_folder="./dataset/", datasets
 
 
 class HyperX(torch.utils.data.Dataset):
-    def __init__(self, data, gt, **hyperparams):
+    def __init__(self, data, gt, band, **hyperparams):
         """
         Args:
             data: 3D hyperspectral image
@@ -199,6 +196,7 @@ class HyperX(torch.utils.data.Dataset):
         self.patch_size = hyperparams["patch_size"]
         self.ignored_labels = set(hyperparams["ignored_labels"])
         self.center_pixel = hyperparams["center_pixel"]
+        self.band = band
         supervision = hyperparams["supervision"]
         mask = np.ones_like(gt)
         for l in self.ignored_labels:
@@ -226,8 +224,8 @@ class HyperX(torch.utils.data.Dataset):
         data_z = np.asarray(np.copy(data).transpose((2, 0, 1)), dtype="float32")
         label = np.asarray(np.copy(label), dtype="int64")
         d, h, w = data_z.shape
-        ### for In 200, GRSS 144 XA 256, PU 103
-        data = np.zeros([200, h, w])
+
+        data = np.zeros([self.band, h, w])
         data[0:d, :, :] = data_z 
         data = np.asarray(np.copy(data), dtype="float32")
 
