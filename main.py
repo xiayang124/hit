@@ -94,7 +94,7 @@ group_train = parser.add_argument_group("Training")
 group_train.add_argument(
     "--epoch",
     type=int,
-    default=10,
+    default=100,
     help="Training epochs (optional, if" " absent will be set by the model)",
 )
 group_train.add_argument(
