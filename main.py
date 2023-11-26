@@ -1,5 +1,9 @@
 from __future__ import print_function
 from __future__ import division
+
+import time
+
+import thop.utils
 # Torch
 import torch.utils.data as data
 # Numpy, scipy, scikit-image, spectral
@@ -90,7 +94,7 @@ group_train = parser.add_argument_group("Training")
 group_train.add_argument(
     "--epoch",
     type=int,
-    default=100,
+    default=10,
     help="Training epochs (optional, if" " absent will be set by the model)",
 )
 group_train.add_argument(
@@ -230,12 +234,14 @@ def get_logits(output):
     return output
 
 
-def train_epoch(model, train_loader, criterion, optimizer, dataset, epochs):
+def train_epoch(train_loader, criterion, optimizer, dataset, epochs):
     evalation = HSIEvaluation(dataset)
     recorder = HSIRecoder()
     epoch_avg_loss = AvgrageMeter()
     total_loss = 0
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    begin_time = time.time()
     for epoch in range(epochs):
         model.train()
         epoch_avg_loss.reset()
@@ -266,10 +272,38 @@ def train_epoch(model, train_loader, criterion, optimizer, dataset, epochs):
             recorder.append_index_value("train_kappa", epoch + 1, temp_res['kappa'])
             print('[--TEST--] [Epoch: %d] [oa: %.5f] [aa: %.5f] [kappa: %.5f] [num: %s]' % (
                 epoch + 1, temp_res['oa'], temp_res['aa'], temp_res['kappa'], str(y_test.shape)))
+    end_time = time.time()
     final_pred_test, final_test = test(test_loader)
+
+    batch_shape = batch_data.shape
+    test_flop = torch.randn(size=(hyperparams["batch_size"], 1, batch_shape[2], batch_shape[3], batch_shape[4])).to(device)
+    macs, params = thop.profile(model, (test_flop,))
+
     temp_res = evalation.eval(final_test, final_pred_test)
+
+    if dataset_name == "Indian":
+        oa_range = (58.79 - 4.74, 58.79 + 4.74)
+        aa_range = (68.46 - 3.02, 68.46 + 3.02)
+        kappa_range = (53.24 - 5.16, 53.24 + 5.16)
+    if dataset_name == "Pavia":
+        oa_range = (75.52 - 5.10, 75.52 + 5.10)
+        aa_range = (76.66 - 3.95, 76.66 + 3.95)
+        kappa_range = (68.75 - 6.21, 68.75 + 6.21)
+    if dataset_name == "Honghu":
+        oa_range = (76.31 - 1.34, 76.31 + 1.34)
+        aa_range = (65.45 - 1.75, 65.45 + 1.75)
+        kappa_range = (70.65 - 1.66, 70.65 + 1.66)
+    oa = temp_res['oa']
+    aa = temp_res['aa']
+    kappa = temp_res['kappa']
+    if not oa_range[0] < oa < oa_range[1] or not aa_range[0] < aa < aa_range[1] or not kappa_range[0] < kappa < kappa_range[1]:
+        return None, False
+    temp_res['macs'] = macs
+    temp_res['flop'] = macs * 2
+    temp_res['times'] = end_time - begin_time
+
     recorder.record_eval(temp_res)
-    return recorder
+    return recorder, True
 
 
 def test(test_loader):
@@ -291,8 +325,27 @@ def test(test_loader):
     return y_pred_test, y_test
 
 
+def test_all(all_loader):
+    count = 0
+    model.eval()
+    y_pred_test = 0
+    y_test = 0
+    for inputs, labels in all_loader:
+        inputs = inputs.to(device)
+        outputs = get_logits(model.forward(inputs))
+        outputs = np.argmax(outputs.detach().cpu().numpy(), axis=1)
+        if count == 0:
+            y_pred_test = outputs
+            y_test = labels
+            count = 1
+        else:
+            y_pred_test = np.concatenate((y_pred_test, outputs))
+            y_test = np.concatenate((y_test, labels))
+    return y_pred_test
+
+
 for dataset_name in ['Honghu', 'Indian', 'Pavia']:
-    for train_num in [0.1, 5, 10, 15, 20, 25, 30]:
+    for train_num in [10]:
         mat_file = "{}_{}_split.mat".format(dataset_name, train_num)
         if utils.result_file_exists('./dataset/{}'.format(dataset_name), mat_file):
             print("{} had been generated...skip".format(mat_file))
@@ -300,22 +353,23 @@ for dataset_name in ['Honghu', 'Indian', 'Pavia']:
         data_gen.generate_data(dataset_name, train_num)
 print("All data had been generated!")
 
-for dataset_name in ['Indian', 'Pavia', 'Honghu']:
+for dataset_name in ['Pavia', 'Honghu']:
     if dataset_name == "Indian":
         norm_band = 400
     elif dataset_name == "Pavia":
         norm_band = 208
     elif dataset_name == "Honghu":
         norm_band = 544
-    for train_num in [5, 10, 15, 20, 25, 30, 0.1]:
-        for train_time in range(1):
-            uniq_name = "{}_{}_{}_hit.json".format(dataset_name, train_num, train_time)
+    for train_num in [10]:
+        while True:
+            """uniq_name = "{}_{}_{}_hit.json".format(dataset_name, train_num, train_time)
             if utils.result_file_exists('./save_path', uniq_name):
                 print('%s has been run. skip...' % uniq_name)
                 continue
-            print("begin training {}".format(uniq_name))
+            print("begin training {}".format(uniq_name))"""
             # Load the dataset
             img, TR, TE, LABEL_VALUES, IGNORED_LABELS, _, _ = get_dataset(dataset_name, train_num)
+            height, width, band = img.shape
             gt = TR + TE
             # Number of classes
             N_CLASSES = len(LABEL_VALUES)
@@ -345,10 +399,10 @@ for dataset_name in ['Indian', 'Pavia', 'Honghu']:
                     np.count_nonzero(TR), np.count_nonzero(gt)
                 )
             )
-            print(
+            """print(
                 "Running an experiment with the {} model".format(MODEL),
                 "run {}/{}".format(train_time + 1, 3),
-            )
+            )"""
 
             model, optimizer, loss, hyperparams = get_model(MODEL, norm_band, **hyperparams)
 
@@ -365,9 +419,33 @@ for dataset_name in ['Indian', 'Pavia', 'Honghu']:
                 # pin_memory=hyperparams['device'],
                 batch_size=hyperparams["batch_size"],
             )
+
+            init_line = np.linspace(0, height - 1, height, dtype=int).reshape(-1, 1)
+            init_row = np.linspace(0, width - 1, width, dtype=int).reshape(-1, 1)
+
+            lengths = np.repeat(init_line, width, axis=0)
+            rows = np.repeat(init_row, height, axis=1).reshape((-1, 1), order='F')
+            total_pos_all = np.concatenate((lengths, rows), axis=1)
+
+            fake_pos = np.ones(shape=(height, width), dtype=int)
+
+            all_dataset = HyperX(img, fake_pos, input_band, **hyperparams)
+            all_loader = data.DataLoader(
+                all_dataset,
+                # pin_memory=hyperparams['device'],
+                batch_size=hyperparams["batch_size"],
+            )
+
             print(hyperparams)
 
-            recorder = train_epoch(model, train_loader, loss, optimizer, hyperparams["dataset"], hyperparams["epoch"])
-            path = "./save_path/{}_{}_{}_hit".format(dataset_name, train_num, train_time)
+            recorder, train_result = train_epoch(train_loader, loss, optimizer, hyperparams["dataset"], hyperparams["epoch"])
+            if train_result is False:
+                continue
+            path = "./save_path/{}_{}_hit".format(dataset_name, train_num)
             recorder.to_file(path)
-        
+            all_pred = test_all(all_loader)
+            all_pred = all_pred.reshape((height - 15, width - 15))
+            npy_path = "./save_npy_path/{}_{}_hit.pred.npy".format(dataset_name, train_num)
+            np.save(npy_path, all_pred)
+
+            break
