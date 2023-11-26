@@ -353,7 +353,7 @@ for dataset_name in ['Honghu', 'Indian', 'Pavia']:
         data_gen.generate_data(dataset_name, train_num)
 print("All data had been generated!")
 
-for dataset_name in ['Pavia', 'Honghu']:
+for dataset_name in ['Honghu']:
     if dataset_name == "Indian":
         norm_band = 400
     elif dataset_name == "Pavia":
