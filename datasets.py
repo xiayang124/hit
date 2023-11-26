@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-This file contains the PyTorch dataset for hyperspectral images and
+This file contains the PyTorch data for hyperspectral images and
 related helpers.
 """
 import spectral
@@ -91,12 +91,12 @@ except ImportError:
     pass
 
 
-def get_dataset(dataset_name, train_num=10, target_folder="./dataset/", datasets=DATASETS_CONFIG):
-    """Gets the dataset specified by name and return the related components.
+def get_dataset(dataset_name, train_num=10, target_folder="./data/", datasets=DATASETS_CONFIG):
+    """Gets the data specified by name and return the related components.
     Args:
-        dataset_name: string with the name of the dataset
+        dataset_name: string with the name of the data
         target_folder (optional): folder to store the datasets, defaults to ./
-        datasets (optional): dataset configuration dictionary, defaults to prebuilt one
+        datasets (optional): data configuration dictionary, defaults to prebuilt one
         train_num (Any):
     Returns:
         img: 3D hyperspectral image (WxHxB)
@@ -192,7 +192,7 @@ class HyperX(torch.utils.data.Dataset):
         super(HyperX, self).__init__()
         self.data = data
         self.label = gt
-        self.name = hyperparams["dataset"]
+        self.name = hyperparams["data"]
         self.patch_size = hyperparams["patch_size"]
         self.ignored_labels = set(hyperparams["ignored_labels"])
         self.center_pixel = hyperparams["center_pixel"]

@@ -4,7 +4,7 @@ import random
 
 # TODO: 这里是一处涉及到路径且可能需要根据实际需要修改的地方
 # TODO: 将数据放在data目录下就行，会自动split数据
-data_path_prefix = './dataset'
+data_path_prefix = './data'
 
 
 def load_data(data_sign):
@@ -94,6 +94,6 @@ def generate_data(data_sign, train_class=10):
         target = gen(data_sign, train_class)
     train_num_str = str(train_class)
     # TODO: 这里是一处涉及到路径且可能需要根据实际需要修改的地方
-    save_path = './dataset/%s/%s_%s_split.mat' % (data_sign, data_sign, train_num_str)
+    save_path = './data/%s/%s_%s_split.mat' % (data_sign, data_sign, train_num_str)
     sio.savemat(save_path, target)
     return True

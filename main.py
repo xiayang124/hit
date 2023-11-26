@@ -28,7 +28,7 @@ parser = argparse.ArgumentParser(
     description="Run deep learning experiments on" " various hyperspectral datasets"
 )
 parser.add_argument(
-    "--dataset", type=str, default="IndianPines", choices=dataset_names, help="Dataset to use."
+    "--data", type=str, default="IndianPines", choices=dataset_names, help="Dataset to use."
 )
 parser.add_argument(
     "--model",
@@ -347,7 +347,7 @@ def test_all(all_loader):
 for dataset_name in ['Honghu', 'Indian', 'Pavia']:
     for train_num in [10]:
         mat_file = "{}_{}_split.mat".format(dataset_name, train_num)
-        if utils.result_file_exists('./dataset/{}'.format(dataset_name), mat_file):
+        if utils.result_file_exists('./data/{}'.format(dataset_name), mat_file):
             print("{} had been generated...skip".format(mat_file))
             continue
         data_gen.generate_data(dataset_name, train_num)
@@ -367,7 +367,7 @@ for dataset_name in ['Honghu']:
                 print('%s has been run. skip...' % uniq_name)
                 continue
             print("begin training {}".format(uniq_name))"""
-            # Load the dataset
+            # Load the data
             img, TR, TE, LABEL_VALUES, IGNORED_LABELS, _, _ = get_dataset(dataset_name, train_num)
             height, width, band = img.shape
             gt = TR + TE
@@ -438,7 +438,7 @@ for dataset_name in ['Honghu']:
 
             print(hyperparams)
 
-            recorder, train_result = train_epoch(train_loader, loss, optimizer, hyperparams["dataset"], hyperparams["epoch"])
+            recorder, train_result = train_epoch(train_loader, loss, optimizer, hyperparams["data"], hyperparams["epoch"])
             if train_result is False:
                 continue
             path = "./save_path/{}_{}_hit".format(dataset_name, train_num)
