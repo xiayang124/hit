@@ -178,7 +178,7 @@ def get_dataset(dataset_name, train_num=10, target_folder="./data/", datasets=DA
 
 
 class HyperX(torch.utils.data.Dataset):
-    def __init__(self, data, gt, band, **hyperparams):
+    def __init__(self, data, gt, band, hyperparams):
         """
         Args:
             data: 3D hyperspectral image

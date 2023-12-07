@@ -406,14 +406,14 @@ for dataset_name in ['Honghu']:
 
             model, optimizer, loss, hyperparams = get_model(MODEL, norm_band, **hyperparams)
 
-            train_dataset = HyperX(img, TR, input_band, **hyperparams)
+            train_dataset = HyperX(img, TR, input_band, hyperparams)
             train_loader = data.DataLoader(
                 train_dataset,
                 batch_size=hyperparams["batch_size"],
                 # pin_memory=hyperparams['device'],
                 shuffle=True,
             )
-            test_dataset = HyperX(img, TE, input_band, **hyperparams)
+            test_dataset = HyperX(img, TE, input_band, hyperparams)
             test_loader = data.DataLoader(
                 test_dataset,
                 # pin_memory=hyperparams['device'],
@@ -429,7 +429,7 @@ for dataset_name in ['Honghu']:
 
             fake_pos = np.ones(shape=(height, width), dtype=int)
 
-            all_dataset = HyperX(img, fake_pos, input_band, **hyperparams)
+            all_dataset = HyperX(img, fake_pos, input_band, hyperparams)
             all_loader = data.DataLoader(
                 all_dataset,
                 # pin_memory=hyperparams['device'],
