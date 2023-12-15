@@ -423,6 +423,9 @@ class HSIRecoder(object):
     def record_eval(self, eval_obj):
         self.record_data['eval'] = eval_obj
 
+    def record_add(self, group, obj, value):
+        self.record_data[group][obj] = value
+
     def record_pred(self, pred_matrix):
         self.pred = pred_matrix
 

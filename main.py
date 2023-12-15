@@ -241,7 +241,6 @@ def train_epoch(train_loader, criterion, optimizer, dataset, epochs):
     total_loss = 0
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    begin_time = time.time()
     for epoch in range(epochs):
         model.train()
         epoch_avg_loss.reset()
@@ -272,7 +271,6 @@ def train_epoch(train_loader, criterion, optimizer, dataset, epochs):
             recorder.append_index_value("train_kappa", epoch + 1, temp_res['kappa'])
             print('[--TEST--] [Epoch: %d] [oa: %.5f] [aa: %.5f] [kappa: %.5f] [num: %s]' % (
                 epoch + 1, temp_res['oa'], temp_res['aa'], temp_res['kappa'], str(y_test.shape)))
-    end_time = time.time()
     final_pred_test, final_test = test(test_loader)
 
     batch_shape = batch_data.shape
@@ -297,13 +295,12 @@ def train_epoch(train_loader, criterion, optimizer, dataset, epochs):
     aa = temp_res['aa']
     kappa = temp_res['kappa']
     if not oa_range[0] < oa < oa_range[1] or not aa_range[0] < aa < aa_range[1] or not kappa_range[0] < kappa < kappa_range[1]:
-        return None, False
+        return False
     temp_res['macs'] = macs
     temp_res['flop'] = macs * 2
-    temp_res['times'] = end_time - begin_time
 
     recorder.record_eval(temp_res)
-    return recorder, True
+    return recorder
 
 
 def test(test_loader):
@@ -330,6 +327,7 @@ def test_all(all_loader):
     model.eval()
     y_pred_test = 0
     y_test = 0
+    begin_time = round(time.time() * 1000)
     for inputs, labels in all_loader:
         inputs = inputs.to(device)
         outputs = get_logits(model.forward(inputs))
@@ -341,7 +339,8 @@ def test_all(all_loader):
         else:
             y_pred_test = np.concatenate((y_pred_test, outputs))
             y_test = np.concatenate((y_test, labels))
-    return y_pred_test
+    end_time = round(time.time() * 1000)
+    return y_pred_test, end_time - begin_time
 
 
 for dataset_name in ['Honghu', 'Indian', 'Pavia']:
@@ -353,7 +352,7 @@ for dataset_name in ['Honghu', 'Indian', 'Pavia']:
         data_gen.generate_data(dataset_name, train_num)
 print("All data had been generated!")
 
-for dataset_name in ['Honghu']:
+for dataset_name in ['Indian', 'Pavia', 'Honghu']:
     if dataset_name == "Indian":
         norm_band = 400
     elif dataset_name == "Pavia":
@@ -438,14 +437,15 @@ for dataset_name in ['Honghu']:
 
             print(hyperparams)
 
-            recorder, train_result = train_epoch(train_loader, loss, optimizer, hyperparams["data"], hyperparams["epoch"])
+            train_result = train_epoch(train_loader, loss, optimizer, hyperparams["data"], hyperparams["epoch"])
             if train_result is False:
                 continue
             path = "./save_path/{}_{}_hit".format(dataset_name, train_num)
-            recorder.to_file(path)
-            all_pred = test_all(all_loader)
+            all_pred, times = test_all(all_loader)
+            train_result.record_add('eval', 'times', times)
             all_pred = all_pred.reshape((height - 15, width - 15))
             npy_path = "./save_npy_path/{}_{}_hit.pred.npy".format(dataset_name, train_num)
+            train_result.to_file(path)
             np.save(npy_path, all_pred)
 
             break
