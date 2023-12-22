@@ -178,7 +178,7 @@ def get_dataset(dataset_name, train_num=10, target_folder="./data/", datasets=DA
 
 
 class HyperX(torch.utils.data.Dataset):
-    def __init__(self, data, gt, band, hyperparams):
+    def __init__(self, data, gt, band, hyperparams, shuffle=True):
         """
         Args:
             data: 3D hyperspectral image
@@ -207,7 +207,8 @@ class HyperX(torch.utils.data.Dataset):
             [(x, y) for x, y in zip(x_pos, y_pos) if p < x < data.shape[0] - p and p < y < data.shape[1] - p]
         )
         self.labels = [self.label[x, y] for x, y in self.indices]
-        np.random.shuffle(self.indices)
+        if shuffle:
+            np.random.shuffle(self.indices)
 
     def __len__(self):
         return len(self.indices)

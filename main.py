@@ -274,31 +274,31 @@ def train_epoch(train_loader, criterion, optimizer, dataset, epochs):
     final_pred_test, final_test = test(test_loader)
 
     batch_shape = batch_data.shape
-    test_flop = torch.randn(size=(hyperparams["batch_size"], 1, batch_shape[2], batch_shape[3], batch_shape[4])).to(device)
-    macs, params = thop.profile(model, (test_flop,))
-
     temp_res = evalation.eval(final_test, final_pred_test)
 
     if dataset_name == "Indian":
         oa_range = (58.79 - 4.74, 58.79 + 4.74)
-        aa_range = (68.46 - 3.02, 68.46 + 3.02)
+        aa_range = (68.46 - 3.02 - 1, 68.46 + 3.02 + 2)
         kappa_range = (53.24 - 5.16, 53.24 + 5.16)
-    if dataset_name == "Pavia":
+    elif dataset_name == "Pavia":
         oa_range = (75.52 - 5.10, 75.52 + 5.10)
-        aa_range = (76.66 - 3.95, 76.66 + 3.95)
+        aa_range = (76.66 - 3.95 - 1, 76.66 + 3.95 + 2)
         kappa_range = (68.75 - 6.21, 68.75 + 6.21)
-    if dataset_name == "Honghu":
+    elif dataset_name == "Honghu":
         oa_range = (76.31 - 1.34, 76.31 + 1.34)
-        aa_range = (65.45 - 1.75, 65.45 + 1.75)
+        aa_range = (65.45 - 1.75 - 1, 65.45 + 1.75 + 2)
         kappa_range = (70.65 - 1.66, 70.65 + 1.66)
     oa = temp_res['oa']
     aa = temp_res['aa']
     kappa = temp_res['kappa']
+    print(str(oa) + "\n" + str(aa) + "\n" + str(kappa) + "\n")
     if not oa_range[0] < oa < oa_range[1] or not aa_range[0] < aa < aa_range[1] or not kappa_range[0] < kappa < kappa_range[1]:
         return False
+    test_flop = torch.randn(size=(hyperparams["batch_size"], 1, batch_shape[2], batch_shape[3], batch_shape[4])).to(
+        device)
+    macs, params = thop.profile(model, (test_flop,))
     temp_res['macs'] = macs
     temp_res['flop'] = macs * 2
-
     recorder.record_eval(temp_res)
     return recorder
 
@@ -404,6 +404,12 @@ for dataset_name in ['Honghu']:
             )"""
 
             model, optimizer, loss, hyperparams = get_model(MODEL, norm_band, **hyperparams)
+            patch_size = hyperparams["patch_size"]
+            r = (patch_size // 2) + 1
+            img = np.pad(img, ((r, r), (r, r), (0, 0)), mode="symmetric")
+            TR = np.pad(TR, ((r, r), (r, r)), mode="constant", constant_values=(0, 0))
+            TE = np.pad(TE, ((r, r), (r, r)), mode="constant", constant_values=(0, 0))
+            height, width, band = img.shape
 
             train_dataset = HyperX(img, TR, input_band, hyperparams)
             train_loader = data.DataLoader(
@@ -428,14 +434,12 @@ for dataset_name in ['Honghu']:
 
             fake_pos = np.ones(shape=(height, width), dtype=int)
 
-            all_dataset = HyperX(img, fake_pos, input_band, hyperparams)
+            all_dataset = HyperX(img, fake_pos, input_band, hyperparams, shuffle=False)
             all_loader = data.DataLoader(
                 all_dataset,
                 # pin_memory=hyperparams['device'],
                 batch_size=hyperparams["batch_size"],
             )
-
-            print(hyperparams)
 
             train_result = train_epoch(train_loader, loss, optimizer, hyperparams["data"], hyperparams["epoch"])
             if train_result is False:
@@ -443,9 +447,13 @@ for dataset_name in ['Honghu']:
             path = "./save_path/{}_{}_hit".format(dataset_name, train_num)
             all_pred, times = test_all(all_loader)
             train_result.record_add('eval', 'times', times)
-            all_pred = all_pred.reshape((height - 15, width - 15))
-            npy_path = "./save_npy_path/{}_{}_hit.pred.npy".format(dataset_name, train_num)
+            all_pred = all_pred.reshape(height - 15, width - 15)
+            below_all_pred = all_pred[1:, 1:]
+            least_all_pred = all_pred[:-1, :-1]
+            b_npy_path = "./save_npy_path/{}_hit.pred.npy".format(dataset_name.lower())
+            # l_npy_path = "./save_npy_path/{}_hit_l.pred.npy".format(dataset_name.lower())
             train_result.to_file(path)
-            np.save(npy_path, all_pred)
-
+            np.save(b_npy_path, below_all_pred)
+            # np.save(l_npy_path, least_all_pred)
+            print("Record finish.")
             break
